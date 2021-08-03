@@ -18,30 +18,32 @@ def sample_mask(idx, l):
 
 def load_data(dataset_str):
     """Read the data and preprocess the task information."""
-    dataset_G = "data/{}-airports.edgelist".format(dataset_str)
-    dataset_L = "data/labels-{}-airports.txt".format(dataset_str)
+    dataset_G = "DEMO-Net/data/cora/new-cora-edges.txt"
+    dataset_L = "DEMO-Net/data/cora/new-cora-labels.txt"
     label_raw, nodes = [], []
-    with open(dataset_L, 'r') as file_to_read:
+    with open(dataset_L, "r") as file_to_read:
         while True:
             lines = file_to_read.readline()
             if not lines:
                 break
             node, label = lines.split()
-            if label == 'label': continue
+            if label == "label":
+                continue
             label_raw.append(int(label))
             nodes.append(int(node))
     lb = preprocessing.LabelBinarizer()
     labels = lb.fit_transform(label_raw)
-    G = nx.read_edgelist(open(dataset_G, 'rb'), nodetype=int)
+    G = nx.read_edgelist(open(dataset_G, "rb"), nodetype=int)
+    feature_matix = np.loadtxt("DEMO-Net/data/cora/new-cora-features.txt")
     adj = nx.adjacency_matrix(G, nodelist=nodes)
-    features = sp.csr_matrix(adj)
+    features = sp.csr_matrix(feature_matix)
 
     # Randomly split the train/validation/test set
-    indices = np.arange(adj.shape[0]).astype('int32')
+    indices = np.arange(features.shape[0]).astype("int32")
     np.random.shuffle(indices)
-    idx_train = indices[:adj.shape[0] // 3]
-    idx_val = indices[adj.shape[0] // 3: (2 * adj.shape[0]) // 3]
-    idx_test = indices[(2 * adj.shape[0]) // 3:]
+    idx_train = indices[: features.shape[0] // 3]
+    idx_val = indices[features.shape[0] // 3 : (2 * features.shape[0]) // 3]
+    idx_test = indices[(2 * features.shape[0]) // 3 :]
 
     train_mask = sample_mask(idx_train, labels.shape[0])
     val_mask = sample_mask(idx_val, labels.shape[0])
@@ -71,12 +73,24 @@ def load_data(dataset_str):
             neighs = [int(i) for i in range(adj.shape[0]) if adj[idx, i] > 0]
             d_list += neighs
         neighbor_list.append(d_list)
-        assert len(d_list) == value * len(degreePosition), 'The neighbor lists are wrong!'
-    return adj, features, y_train, y_val, y_test, train_mask, val_mask, test_mask, degreeTasks, neighbor_list
+        assert len(d_list) == value * len(degreePosition), "The neighbor lists are wrong!"
+    return (
+        adj,
+        features,
+        y_train,
+        y_val,
+        y_test,
+        train_mask,
+        val_mask,
+        test_mask,
+        degreeTasks,
+        neighbor_list,
+    )
 
 
 def sparse_to_tuple(sparse_mx):
     """Convert sparse matrix to tuple representation."""
+
     def to_tuple(mx):
         if not sp.isspmatrix_coo(mx):
             mx = mx.tocoo()
