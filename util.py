@@ -34,7 +34,7 @@ def load_data(dataset_str):
     lb = preprocessing.LabelBinarizer()
     labels = lb.fit_transform(label_raw)
     G = nx.read_edgelist(open(dataset_G, "rb"), nodetype=int)
-    feature_matix = np.loadtxt("gdrive/My Drive/data/{}/{}-features.txt")
+    feature_matix = np.loadtxt("gdrive/My Drive/data/{}/{}-features.txt".format(dataset_str, dataset_str))
     adj = nx.adjacency_matrix(G, nodelist=nodes)
     features = sp.csr_matrix(feature_matix)
 
