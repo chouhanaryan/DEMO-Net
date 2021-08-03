@@ -18,8 +18,8 @@ def sample_mask(idx, l):
 
 def load_data(dataset_str):
     """Read the data and preprocess the task information."""
-    dataset_G = "DEMO-Net/data/cora/new-cora-edges.txt"
-    dataset_L = "DEMO-Net/data/cora/new-cora-labels.txt"
+    dataset_G = "DEMO-Net/data/cora/cora-edges.txt"
+    dataset_L = "DEMO-Net/data/cora/cora-labels.txt"
     label_raw, nodes = [], []
     with open(dataset_L, "r") as file_to_read:
         while True:
@@ -34,7 +34,7 @@ def load_data(dataset_str):
     lb = preprocessing.LabelBinarizer()
     labels = lb.fit_transform(label_raw)
     G = nx.read_edgelist(open(dataset_G, "rb"), nodetype=int)
-    feature_matix = np.loadtxt("DEMO-Net/data/cora/new-cora-features.txt")
+    feature_matix = np.loadtxt("DEMO-Net/data/cora/cora-features.txt")
     adj = nx.adjacency_matrix(G, nodelist=nodes)
     features = sp.csr_matrix(feature_matix)
 
