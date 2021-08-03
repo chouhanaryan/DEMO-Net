@@ -5,21 +5,34 @@ from util import sparse_to_tuple
 
 
 class BaseModel(object):
-    def __init__(self, placeholders, degreeTasks, neighbor_list, num_class, fea_size, hash_dim, hidden_dim, num_hash, num_layers, activation=tf.nn.elu, **kwargs):
-        allowed_kwargs = {'name', 'logging', 'model_size'}
+    def __init__(
+        self,
+        placeholders,
+        degreeTasks,
+        neighbor_list,
+        num_class,
+        fea_size,
+        hash_dim,
+        hidden_dim,
+        num_hash,
+        num_layers,
+        activation=tf.nn.elu,
+        **kwargs
+    ):
+        allowed_kwargs = {"name", "logging", "model_size"}
         for kwarg in kwargs.keys():
-            assert kwarg in allowed_kwargs, 'Invalid keyword argument: ' + kwarg
-        name = kwargs.get('name')
+            assert kwarg in allowed_kwargs, "Invalid keyword argument: " + kwarg
+        name = kwargs.get("name")
         if not name:
             name = self.__class__.__name__.lower()
         self.name = name
-        logging = kwargs.get('logging', False)
+        logging = kwargs.get("logging", False)
         self.logging = logging
 
-        self.features = placeholders['features']
-        self.labels = placeholders['labels']
-        self.masks = placeholders['masks']
-        self.dropout = placeholders['dropout']
+        self.features = placeholders["features"]
+        self.labels = placeholders["labels"]
+        self.masks = placeholders["masks"]
+        self.dropout = placeholders["dropout"]
         self.degreeTasks = degreeTasks
         self.neighbor_list = neighbor_list
         self.hash_dim = hash_dim
@@ -49,7 +62,7 @@ class BaseModel(object):
     def global_hashing_layer(self, id_layer, from_self, out_sz, act=tf.nn.elu):
         """ Hash Kernel based Multi-task Function """
         fea_dim = from_self.get_shape().as_list()[1]
-        with tf.name_scope('global_hash_layer' + str(id_layer)):
+        with tf.name_scope("global_hash_layer" + str(id_layer)):
             hashed_feas = []
             for _ in range(self.num_hash):
                 from_neighs = []
@@ -67,7 +80,10 @@ class BaseModel(object):
                         neigh_hashMap = self.hashmap(fea_dim)
                         hashed_neigh = tf.matmul(neigh_fea, neigh_hashMap)
                         hashed_global = tf.matmul(neigh_fea, global_hashMap)
-                        h = tf.reshape(tf.add_n([hashed_neigh, hashed_global]), [len(nodeID), nodeDegree, self.hash_dim])
+                        h = tf.reshape(
+                            tf.add_n([hashed_neigh, hashed_global]),
+                            [len(nodeID), nodeDegree, self.hash_dim],
+                        )
                         h = tf.reduce_mean(h, axis=1)
                         from_neighs.append(h)
                 from_neighs = tf.concat(from_neighs, axis=0)
@@ -92,9 +108,15 @@ class BaseModel(object):
 
     def global_weight_layer(self, id_layer, inputs, out_sz, act=tf.nn.elu):
         """ Weight-based Multi-task Function """
-        with tf.name_scope('global_hash_layer' + str(id_layer)):
-            global_maps = tf.layers.conv1d(tf.expand_dims(inputs, axis=0), out_sz, 1, padding='valid',
-                                               use_bias=False, kernel_initializer=tf.contrib.layers.xavier_initializer())
+        with tf.name_scope("global_hash_layer" + str(id_layer)):
+            global_maps = tf.layers.conv1d(
+                tf.expand_dims(inputs, axis=0),
+                out_sz,
+                1,
+                padding="valid",
+                use_bias=False,
+                kernel_initializer=tf.contrib.layers.xavier_initializer(),
+            )
             global_maps = tf.squeeze(global_maps)
             from_neighs = []
             for i, (nodeDegree, nodeID) in enumerate(self.degreeTasks):
@@ -104,8 +126,14 @@ class BaseModel(object):
                     from_neighs.append(neigh_fea)
                 else:
                     neigh_inputs = tf.gather(inputs, neighID)
-                    neigh_local = tf.layers.conv1d(tf.expand_dims(neigh_inputs, axis=0), out_sz, 1, padding='valid',
-                                                   use_bias=False, kernel_initializer=tf.contrib.layers.xavier_initializer())
+                    neigh_local = tf.layers.conv1d(
+                        tf.expand_dims(neigh_inputs, axis=0),
+                        out_sz,
+                        1,
+                        padding="valid",
+                        use_bias=False,
+                        kernel_initializer=tf.contrib.layers.xavier_initializer(),
+                    )
                     neigh_local = tf.squeeze(neigh_local)
 
                     neigh_global = tf.nn.embedding_lookup(global_maps, neighID)
@@ -122,8 +150,14 @@ class BaseModel(object):
             nodeTFID = tf.Variable(tf.constant(id_list), trainable=False)
             hidden_neigh = tf.nn.embedding_lookup(from_neighs, nodeTFID)
 
-            hideen_self = tf.layers.conv1d(tf.expand_dims(inputs, axis=0), out_sz, 1, padding='valid',
-                                           use_bias=False, kernel_initializer=tf.contrib.layers.xavier_initializer())
+            hideen_self = tf.layers.conv1d(
+                tf.expand_dims(inputs, axis=0),
+                out_sz,
+                1,
+                padding="valid",
+                use_bias=False,
+                kernel_initializer=tf.contrib.layers.xavier_initializer(),
+            )
             hideen_self = tf.squeeze(hideen_self)
 
             hideen_self = tf.nn.dropout(hideen_self, 1.0 - self.dropout)
@@ -132,20 +166,25 @@ class BaseModel(object):
             ret = tf.contrib.layers.bias_add(ret)
         return act(ret)
 
-    def inference(self):
-        """Create DEMO-Net With Weight-based Multi-task Function"""
-        with tf.name_scope('model'):
+    def inference(self, scheme):
+        """Create DEMO-Net With Weight-based or Hashing-based Multi-task Function"""
+        with tf.name_scope("model"):
             inputs = self.features
-            for i in range(self.num_layers):
-                inputs = self.global_weight_layer(i, inputs, out_sz=self.hidden_dim, act=self.act)
-
-            logits = self.global_weight_layer(self.num_layers, inputs, out_sz=self.num_class, act=lambda x: x)
+            if scheme == "weight":
+                for i in range(self.num_layers):
+                    inputs = self.global_weight_layer(i, inputs, out_sz=self.hidden_dim, act=self.act)
+                logits = self.global_weight_layer(self.num_layers, inputs, out_sz=self.num_class, act=lambda x: x)
+            elif scheme == "hashing":
+                for i in range(self.num_layers):
+                    inputs = self.global_hashing_layer(i, inputs, out_sz=self.hidden_dim, act=self.act)
+                logits = self.global_hashing_layer(self.num_layers, inputs, out_sz=self.num_class, act=lambda x: x)
         return logits
 
     def training(self, loss, lr, l2_coef):
         vars = tf.trainable_variables()
-        lossL2 = tf.add_n([tf.nn.l2_loss(v) for v in vars if v.name not
-                           in ['bias', 'gamma', 'b', 'g', 'beta']]) * l2_coef
+        lossL2 = (
+            tf.add_n([tf.nn.l2_loss(v) for v in vars if v.name not in ["bias", "gamma", "b", "g", "beta"]]) * l2_coef
+        )
 
         opt = tf.train.AdamOptimizer(learning_rate=lr)
         train_op = opt.minimize(loss + lossL2)
